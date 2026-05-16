@@ -8,6 +8,9 @@ ARGO_TOKEN=""
 # 单端口模式 UDP 协议选择: hy2 (默认) 或 tuic
 SINGLE_PORT_UDP="hy2"
 
+# 固定 UUID，不填则随机生成
+FIXED_UUID="b8192c27-49c7-4a76-9153-4c8365e7f9b5"
+
 # ================== CF 优选域名列表 ==================
 CF_DOMAINS=(
     "cf.090227.xyz"
@@ -74,7 +77,11 @@ ARGO_PORT=8081
 
 # ================== UUID ==================
 UUID_FILE="${FILE_PATH}/uuid.txt"
-[ -f "$UUID_FILE" ] && UUID=$(cat "$UUID_FILE") || { UUID=$(cat /proc/sys/kernel/random/uuid); echo "$UUID" > "$UUID_FILE"; }
+if [ -n "$FIXED_UUID" ]; then
+    UUID="$FIXED_UUID"
+else
+    [ -f "$UUID_FILE" ] && UUID=$(cat "$UUID_FILE") || { UUID=$(cat /proc/sys/kernel/random/uuid); echo "$UUID" > "$UUID_FILE"; }
+fi
 echo "[UUID] $UUID"
 
 # ================== 架构检测 & 下载 ==================
@@ -167,8 +174,15 @@ const port = process.argv[2] || 8080;
 const bind = process.argv[3] || '0.0.0.0';
 http.createServer((req, res) => {
     if (req.url.includes('/sub') || req.url.includes('/${UUID}')) {
-        res.writeHead(200, {'Content-Type': 'text/plain; charset=utf-8'});
-        try { res.end(fs.readFileSync('${FILE_PATH}/sub.txt', 'utf8')); } catch(e) { res.end('error'); }
+        try {
+            const content = fs.readFileSync('${FILE_PATH}/sub.txt', 'utf8');
+            res.writeHead(200, {'Content-Type': 'text/plain; charset=utf-8'});
+            if (req.url.includes('base64=true')) {
+                res.end(Buffer.from(content).toString('base64'));
+            } else {
+                res.end(content);
+            }
+        } catch(e) { res.writeHead(500); res.end('error'); }
     } else { res.writeHead(404); res.end('404'); }
 }).listen(port, bind, () => console.log('HTTP on ' + bind + ':' + port));
 JSEOF
